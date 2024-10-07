@@ -1,0 +1,12 @@
+{
+  "dependencies": {
+    "@uniswap/v3-sdk": "^3.17.1",
+    "ethers": "^6.13.3",
+    "ts-node": "^10.9.2"
+  },
+  "scripts": {
+    "uniV3": "node --loader ts-node/esm dex/uniswap-v3.ts",
+    "uniV2": "node --loader ts-node/esm dex/uniswap-v2.ts"
+  },
+  "type": "module"
+}
