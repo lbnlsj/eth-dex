@@ -1,7 +1,7 @@
 // eth.ts
-export const rpcUrl = 'https://mainnet.infura.io/v3/7be2ffb97c9b420eb72df63176710248';
+export const rpcUrl = 'https://arbitrum-mainnet.infura.io/v3/b734535321864be3a6e39ea6fd1e915b';
+export const uniswapV2FactoryAddress = '0xc35DADB65012eC5796536bD9864eD8773aBc74C4';
+export const uniswapV2RouterAddress = '0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506';
 export const uniswapV3FactoryAddress = '0x1F98431c8aD98523631AE4a59f267346ea31F984';
-export const wethAddress = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2';
+export const wethAddress = '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1';
 export const uniswapV3QuoterAddress = '0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6';
-export const uniswapV2FactoryAddress = '0x8909dc15e40173ff4699343b6eb8132c65e18ec6';
-export const uniswapV2RouterAddress = '0x8357227D4eDc78991Db6FDB9bD6ADE250536dE1d';
