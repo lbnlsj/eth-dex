@@ -1,8 +1,9 @@
 import { ethers } from 'ethers';
-import * as eth from '../assets/eth';
-import * as bsc from '../assets/bsc';
-import * as base from '../assets/base';
-import * as arb from '../assets/arb';
+import * as eth from '../asseets/eth';
+
+const UNISWAP_V3_FACTORY_ADDRESS = '0x1F98431c8aD98523631AE4a59f267346ea31F984';
+const WETH_ADDRESS = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2';
+const UNISWAP_V3_QUOTER_ADDRESS = '0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6';
 
 const FACTORY_ABI = ['function getPool(address tokenA, address tokenB, uint24 fee) external view returns (address pool)'];
 const POOL_ABI = [
@@ -33,48 +34,9 @@ interface TokenInfo {
     rawInfo: any;
 }
 
-interface ChainConfig {
-    rpcUrl: string;
-    uniswapV3FactoryAddress: string;
-    wethAddress: string;
-    uniswapV3QuoterAddress: string;
-}
-
-const chainConfigs: { [key: string]: ChainConfig } = {
-    eth: {
-        rpcUrl: eth.rpcUrl,
-        uniswapV3FactoryAddress: eth.uniswapV3FactoryAddress,
-        wethAddress: eth.wethAddress,
-        uniswapV3QuoterAddress: eth.uniswapV3QuoterAddress
-    },
-    bsc: {
-        rpcUrl: bsc.rpcUrl,
-        uniswapV3FactoryAddress: bsc.uniswapV3FactoryAddress,
-        wethAddress: bsc.wethAddress,
-        uniswapV3QuoterAddress: bsc.uniswapV3QuoterAddress
-    },
-    base: {
-        rpcUrl: base.rpcUrl,
-        uniswapV3FactoryAddress: base.uniswapV3FactoryAddress,
-        wethAddress: base.wethAddress,
-        uniswapV3QuoterAddress: base.uniswapV3QuoterAddress
-    },
-    arb: {
-        rpcUrl: arb.rpcUrl,
-        uniswapV3FactoryAddress: arb.uniswapV3FactoryAddress,
-        wethAddress: arb.wethAddress,
-        uniswapV3QuoterAddress: arb.uniswapV3QuoterAddress
-    }
-};
-
-async function fetchPoolByMints(chainName: string, mint: string): Promise<TokenInfo> {
-    const config = chainConfigs[chainName];
-    if (!config) {
-        throw new Error(`Unsupported chain: ${chainName}`);
-    }
-
-    const provider = new ethers.JsonRpcProvider(config.rpcUrl);
-    const factory = new ethers.Contract(config.uniswapV3FactoryAddress, FACTORY_ABI, provider);
+async function fetchPoolByMints(mint: string): Promise<TokenInfo> {
+    const provider = new ethers.JsonRpcProvider('https://mainnet.infura.io/v3/7be2ffb97c9b420eb72df63176710248');
+    const factory = new ethers.Contract(UNISWAP_V3_FACTORY_ADDRESS, FACTORY_ABI, provider);
     const token = new ethers.Contract(mint, ERC20_ABI, provider);
 
     const [symbol, decimals] = await Promise.all([
@@ -82,7 +44,7 @@ async function fetchPoolByMints(chainName: string, mint: string): Promise<TokenI
         token.decimals(),
     ]);
 
-    const poolAddress = await factory.getPool(mint, config.wethAddress, 3000); // Assuming 0.3% fee tier
+    const poolAddress = await factory.getPool(mint, WETH_ADDRESS, 3000); // Assuming 0.3% fee tier
     const pool = new ethers.Contract(poolAddress, POOL_ABI, provider);
 
     const [token0, token1, liquidity, slot0, fee] = await Promise.all([
@@ -100,7 +62,7 @@ async function fetchPoolByMints(chainName: string, mint: string): Promise<TokenI
         : 1 / ((Number(sqrtPriceX96) / (2 ** 96)) ** 2);
 
     const tokenContract = new ethers.Contract(mint, ERC20_ABI, provider);
-    const wethContract = new ethers.Contract(config.wethAddress, ERC20_ABI, provider);
+    const wethContract = new ethers.Contract(WETH_ADDRESS, ERC20_ABI, provider);
 
     const [tokenBalance, wethBalance] = await Promise.all([
         tokenContract.balanceOf(poolAddress),
@@ -110,7 +72,8 @@ async function fetchPoolByMints(chainName: string, mint: string): Promise<TokenI
     const tokenLiquidity = Number(ethers.formatUnits(tokenBalance, decimals));
     const ethLiquidity = Number(ethers.formatUnits(wethBalance, 18));
     const marketValue = ethLiquidity * 2; // Approximation, assuming equal value on both sides
-    const vol24h = 0; // Note: vol24h is not available from on-chain data, you might need to use an API for this
+    // Note: vol24h is not available from on-chain data, you might need to use an API for this
+    const vol24h = 0;
 
     return {
         name: symbol,
@@ -135,25 +98,19 @@ async function fetchPoolByMints(chainName: string, mint: string): Promise<TokenI
 }
 
 async function swap(
-    chainName: string,
     mintStr: string,
     action: 'buy' | 'sell',
     amount: number,
     privateKey: string,
     info: TokenInfo,
     slippage: number,
-    feeDiscount: number = 0
+    feeDiscount: number = 0 // New parameter for fee discount
 ) {
-    const config = chainConfigs[chainName];
-    if (!config) {
-        throw new Error(`Unsupported chain: ${chainName}`);
-    }
-
-    const provider = new ethers.JsonRpcProvider(config.rpcUrl);
+    const provider = new ethers.JsonRpcProvider('https://mainnet.infura.io/v3/YOUR-PROJECT-ID');
     const signer = new ethers.Wallet(privateKey, provider);
 
     const pool = new ethers.Contract(info.id, POOL_ABI, provider);
-    const quoter = new ethers.Contract(config.uniswapV3QuoterAddress, QUOTER_ABI, provider);
+    const quoter = new ethers.Contract(UNISWAP_V3_QUOTER_ADDRESS, QUOTER_ABI, provider);
 
     const [token0, token1, fee] = await Promise.all([
         pool.token0(),
@@ -162,8 +119,8 @@ async function swap(
     ]);
 
     const isToken0 = token0.toLowerCase() === mintStr.toLowerCase();
-    const tokenIn = action === 'buy' ? config.wethAddress : mintStr;
-    const tokenOut = action === 'buy' ? mintStr : config.wethAddress;
+    const tokenIn = action === 'buy' ? WETH_ADDRESS : mintStr;
+    const tokenOut = action === 'buy' ? mintStr : WETH_ADDRESS;
 
     const amountIn = ethers.parseUnits(amount.toString(), action === 'buy' ? 18 : await new ethers.Contract(mintStr, ERC20_ABI, provider).decimals());
 
@@ -187,28 +144,37 @@ async function swap(
         sqrtPriceLimitX96: 0
     };
 
+    // Note: This is a simplified version. In a real implementation, you would need to:
+    // 1. Approve the router to spend your tokens (if selling a token other than ETH)
+    // 2. Use the actual Uniswap V3 Router contract to perform the swap
+    // 3. Handle the case of swapping ETH (wrapping/unwrapping)
+
+    // For demonstration purposes, we'll just log the parameters
     console.log('Swap Parameters:', params);
     console.log('Fee Amount:', ethers.formatUnits(discountedFeeAmount, 18));
+
+    // In a real implementation, you would send the transaction here
+    // const tx = await routerContract.exactInputSingle(params, { value: action === 'buy' ? amountIn + discountedFeeAmount : 0 });
+    // const receipt = await tx.wait();
+    // return receipt.transactionHash;
 
     return 'Transaction hash would be returned here';
 }
 
+// Test function
 async function test() {
     // Example usage for fetchPoolByMints
-    const ETH_USDC_ADDRESS = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'; // USDC on Ethereum
-    const ethTokenInfo = await fetchPoolByMints('eth', ETH_USDC_ADDRESS);
-    console.log('Ethereum USDC Pool Info:', JSON.stringify(ethTokenInfo, null, 2));
+    const UNI_ADDRESS = '0xD0EbFe04Adb5Ef449Ec5874e450810501DC53ED5';
+    const tokenInfo = await fetchPoolByMints(UNI_ADDRESS);
+    console.log(JSON.stringify(tokenInfo, null, 2));
 
-    const BASE_USDC_ADDRESS = '0xdb6e0e5094A25a052aB6845a9f1e486B9A9B3DdE'; // USDC on Base
-    const baseTokenInfo = await fetchPoolByMints('base', BASE_USDC_ADDRESS);
-    console.log('Base USDC Pool Info:', JSON.stringify(baseTokenInfo, null, 2));
-
-    // Example usage for swap function (commented out for safety)
+    // Example usage for swap function
+    // Note: This is commented out as it requires a private key and would actually submit a transaction
     /*
     const privateKey = 'your_private_key_here';
     const slippage = 0.5; // 0.5% slippage
     const feeDiscount = 0.1; // 10% fee discount
-    const txHash = await swap('eth', ETH_USDC_ADDRESS, 'buy', 0.1, privateKey, ethTokenInfo, slippage, feeDiscount);
+    const txHash = await swap(UNI_ADDRESS, 'buy', 0.1, privateKey, tokenInfo, slippage, feeDiscount);
     console.log('Transaction Hash:', txHash);
     */
 }
